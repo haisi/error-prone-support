@@ -37,6 +37,11 @@ happens). Until then, build and install it locally:
 
 ## Maven configuration
 
+**Note**: `javac` rejects any `--add-exports` compiler flag combined with `maven.compiler.release`
+(confirmed empirically - not limited to any particular package), so if your project sets
+`maven.compiler.release`, switch to `maven.compiler.source`/`maven.compiler.target` instead, as the
+example below and [`examples/consumer-example`](examples/consumer-example) do.
+
 Add `error_prone_core` and this project's `bugpatterns` artifact to your compiler plugin's
 `annotationProcessorPaths`, and enable the checker via `-Xep:ForbiddenApi:ERROR` and
 `-XepOpt:ForbiddenApi:Signatures=`/`Bundles=`:

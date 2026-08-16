@@ -17,7 +17,14 @@
     <properties>
         <bugpatterns.version>0.1.0-SNAPSHOT</bugpatterns.version>
         <error-prone.version>2.50.0</error-prone.version>
-        <maven.compiler.release>25</maven.compiler.release>
+        <!--
+        javac rejects any add-exports compiler flag combined with the release flag, regardless of
+        which package is being exported (confirmed empirically - this isn't limited to the
+        com.sun.tools.javac.code/.comp exports the parent project's own source needs) - so
+        source/target instead of release here too, same as the parent project.
+        -->
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -34,8 +41,7 @@
                         to ForbiddenApi specifically. Unlike this repository's own build, ordinary
                         consumers do NOT need com.sun.tools.javac.code/.comp exports (those are
                         only needed by code that authors a checker using ASTHelpers/Symbol/Type
-                        directly, like this repo's own ForbiddenApiChecker) - which is why this
-                        list, unlike the parent project's, stays compatible with --release.
+                        directly, like this repo's own ForbiddenApiChecker).
                         -->
                         <arg>--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                         <arg>--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>

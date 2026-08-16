@@ -19,7 +19,7 @@ States: `open`, `in_progress`, `done`.
 [done]        2026-08-16 Error Prone integration tests via CompilationTestHelper (all constructs)
 [done]        2026-08-16 Built-in bundle tests (jdk-system-out live compile; charset/internals via config-loader tests)
 [done]        2026-08-16 No-duplicate-diagnostic tests
-[in_progress] 2026-08-16 Maven consumer example project (written; end-to-end validation pending)
+[done]        2026-08-16 Maven consumer example project (written and validated end-to-end)
 [done]        2026-08-16 README documentation (syntax, bundles, examples, limitations, comparisons)
 [done]        2026-08-16 Remove archetype Placeholder class/test once real API exists
 [done]        2026-08-16 Reach 100% line+branch JaCoCo coverage honestly (no untestable defensive code)
@@ -27,9 +27,9 @@ States: `open`, `in_progress`, `done`.
 [done]        2026-08-16 QA / adversarial test review pass (independent sub-agent) - 20+ new tests, found duplicate-precedence bug
 [done]        2026-08-16 Fix findings from code review + QA
 [done]        2026-08-16 Rerun automated tests after fixes (108 tests, 100% coverage, both -Dquick and full verify green)
-[open]        2026-08-16 Fix findings from code review + QA
-[open]        2026-08-16 Full build verification (./mvnw verify — Checkstyle/Spotless/NullAway/JaCoCo 100%)
-[open]        2026-08-16 Final report: structure, design decisions, limitations, build/test commands
+[done]        2026-08-16 Fix constructor-injection bug found by consumer-example validation (see below)
+[done]        2026-08-16 Full build verification (./mvnw verify — Checkstyle/Spotless/NullAway/JaCoCo 100%)
+[done]        2026-08-16 Final report: structure, design decisions, limitations, build/test commands
 ```
 
 ## Architecture review findings (applied)
@@ -121,6 +121,37 @@ States: `open`, `in_progress`, `done`.
   `final` field) even though that's literally what the `Var` checker's own suggested fix said to
   do - applied `@SuppressWarnings("Var")` to the compact constructor instead, since the reassigned
   variable there is the constructor's own parameter, not the field.
+
+## Consumer-example validation finding (critical, applied)
+
+Actually building `examples/consumer-example` against the locally-`install`-ed jar (as a real,
+separate Maven project would) surfaced a bug that **every** `CompilationTestHelper`-based test in
+this repo had completely missed:
+
+`ForbiddenApiChecker`'s `@Inject public ForbiddenApiChecker(ErrorProneFlags flags)` constructor
+crashed with `ServiceConfigurationError: ... Unable to get public no-arg constructor` the moment
+javac tried to discover it as a plugin. Root cause: a checker registered via
+`@AutoService(BugChecker.class)` (i.e. any external plugin jar on the annotation processor path,
+which is how *every* real consumer uses this library) is discovered by
+`com.google.errorprone.ErrorPronePlugins.loadPlugins` through plain `java.util.ServiceLoader`,
+which mandates a public no-arg constructor per the Java SPI contract - full stop, no exceptions.
+The `ErrorProneFlags`-constructor-injection pattern only works for checkers loaded through Error
+Prone's own reflective `ErrorProneInjector`, which is how `CompilationTestHelper.newInstance(...)`
+constructs checkers internally - a *different, more permissive* code path than real plugin
+discovery, which is exactly why 108 passing tests never caught this.
+
+Fixed by switching to a no-arg constructor and reading `ErrorProneFlags` lazily from
+`VisitorState.errorProneOptions().getFlags()` inside a memoizing `matcher(VisitorState)` accessor
+(threaded through every matcher method), instead of at construction time. Re-verified end-to-end
+after the fix: `examples/consumer-example` now compiles cleanly against the real published jar,
+and - copied `Demo.java`, added a `java.util.Date` field, ran `mvn compile`, confirmed it fails with
+exactly `[ForbiddenApi] java.util.Date is forbidden. Use java.time instead`, then restored the file
+and confirmed a clean compile again - genuinely exercises both the pass and fail paths, not just
+the happy path.
+
+This is the strongest argument in this whole project for why "the automated test suite passes"
+alone was never going to be sufficient to call this done, and why the explicit "Maven consumer
+example has been validated" step in the task brief mattered.
 
 ## Code review + QA findings (applied)
 

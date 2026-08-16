@@ -4,7 +4,6 @@ import static com.google.errorprone.BugPattern.SeverityLevel.ERROR;
 
 import com.google.auto.service.AutoService;
 import com.google.errorprone.BugPattern;
-import com.google.errorprone.ErrorProneFlags;
 import com.google.errorprone.VisitorState;
 import com.google.errorprone.annotations.Var;
 import com.google.errorprone.bugpatterns.BugChecker;
@@ -20,12 +19,12 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import java.util.List;
 import java.util.Optional;
-import javax.inject.Inject;
 import javax.lang.model.element.ElementKind;
 import li.selman.errorprone.bugpatterns.config.ForbiddenApiConfig;
 import li.selman.errorprone.bugpatterns.matcher.ForbiddenApiMatcher;
 import li.selman.errorprone.bugpatterns.matcher.UsageKey;
 import li.selman.errorprone.bugpatterns.model.ForbiddenSignature;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Flags usages of APIs forbidden via {@code -XepOpt:ForbiddenApi:Signatures=<file>} and/or {@code
@@ -39,6 +38,16 @@ import li.selman.errorprone.bugpatterns.model.ForbiddenSignature;
  * field usage. Method and constructor invocations/references need their own matchers because a
  * call's target ({@code System.exit}) resolves to a {@code MethodSymbol}, which the class/field
  * matchers deliberately ignore to avoid reporting the same call twice.
+ *
+ * <p>Configuration is read lazily from {@link VisitorState#errorProneOptions()} on first use,
+ * rather than injected via constructor: this checker is discovered as an external plugin (via
+ * {@link AutoService @AutoService} on the annotation processor path), and such plugins are
+ * instantiated by {@code java.util.ServiceLoader}, which requires a public no-arg constructor - a
+ * constructor taking {@code ErrorProneFlags} only works for checkers bundled directly into {@code
+ * error_prone_core} and loaded through its own reflective injector, not for plugin jars like this
+ * one (confirmed the hard way: a constructor-injected version of this checker threw {@code
+ * ServiceConfigurationError: Unable to get public no-arg constructor} the moment a real consuming
+ * project tried to compile against it).
  */
 @AutoService(BugChecker.class)
 @BugPattern(name = "ForbiddenApi", summary = "Usage of a forbidden API", severity = ERROR)
@@ -50,21 +59,20 @@ public final class ForbiddenApiChecker extends BugChecker
                 BugChecker.NewClassTreeMatcher,
                 BugChecker.MemberReferenceTreeMatcher {
 
-    private final ForbiddenApiMatcher matcher;
-
-    @Inject
-    public ForbiddenApiChecker(ErrorProneFlags flags) {
-        this.matcher = ForbiddenApiConfig.load(flags);
-    }
+    // Lazily initialized on first use, then stable for this checker instance's lifetime (one
+    // instance is reused across an entire compilation, and ErrorProneFlags don't change
+    // mid-compilation). Not shared across concurrent compilations - each gets its own checker
+    // instance - so a plain field is sufficient without further synchronization.
+    private @Nullable ForbiddenApiMatcher matcher;
 
     @Override
     public Description matchIdentifier(IdentifierTree tree, VisitorState state) {
-        return matchClassOrFieldSymbol(ASTHelpers.getSymbol(tree), tree);
+        return matchClassOrFieldSymbol(ASTHelpers.getSymbol(tree), tree, state);
     }
 
     @Override
     public Description matchMemberSelect(MemberSelectTree tree, VisitorState state) {
-        return matchClassOrFieldSymbol(ASTHelpers.getSymbol(tree), tree);
+        return matchClassOrFieldSymbol(ASTHelpers.getSymbol(tree), tree, state);
     }
 
     @Override
@@ -76,13 +84,14 @@ public final class ForbiddenApiChecker extends BugChecker
         return report(
                 new UsageKey.MethodUsage(
                         ownerName(symbol), symbol.getSimpleName().toString(), parameterTypeNames(symbol, state)),
-                tree);
+                tree,
+                state);
     }
 
     @Override
     public Description matchNewClass(NewClassTree tree, VisitorState state) {
         Symbol.MethodSymbol symbol = ASTHelpers.getSymbol(tree);
-        return report(new UsageKey.ConstructorUsage(ownerName(symbol), parameterTypeNames(symbol, state)), tree);
+        return report(new UsageKey.ConstructorUsage(ownerName(symbol), parameterTypeNames(symbol, state)), tree, state);
     }
 
     @Override
@@ -92,7 +101,7 @@ public final class ForbiddenApiChecker extends BugChecker
                 ? new UsageKey.ConstructorUsage(ownerName(symbol), parameterTypeNames(symbol, state))
                 : new UsageKey.MethodUsage(
                         ownerName(symbol), symbol.getSimpleName().toString(), parameterTypeNames(symbol, state));
-        return report(usage, tree);
+        return report(usage, tree, state);
     }
 
     /**
@@ -102,9 +111,9 @@ public final class ForbiddenApiChecker extends BugChecker
      * skipped here: they're handled by the dedicated matchers above, and handling them here too
      * would report the same call/instantiation twice.
      */
-    private Description matchClassOrFieldSymbol(Symbol symbol, Tree tree) {
+    private Description matchClassOrFieldSymbol(Symbol symbol, Tree tree, VisitorState state) {
         if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-            return report(new UsageKey.TypeUsage(classSymbol.getQualifiedName().toString()), tree);
+            return report(new UsageKey.TypeUsage(classSymbol.getQualifiedName().toString()), tree, state);
         }
         if (symbol.getKind() == ElementKind.FIELD || symbol.getKind() == ElementKind.ENUM_CONSTANT) {
             // Unlike every other field/enum-constant symbol, the synthetic FIELD symbol for a
@@ -119,17 +128,27 @@ public final class ForbiddenApiChecker extends BugChecker
                     new UsageKey.FieldUsage(
                             owner.getQualifiedName().toString(),
                             symbol.getSimpleName().toString()),
-                    tree);
+                    tree,
+                    state);
         }
         return Description.NO_MATCH;
     }
 
-    private Description report(UsageKey usage, Tree tree) {
-        Optional<ForbiddenSignature> match = matcher.match(usage);
+    private Description report(UsageKey usage, Tree tree, VisitorState state) {
+        Optional<ForbiddenSignature> match = matcher(state).match(usage);
         if (match.isEmpty()) {
             return Description.NO_MATCH;
         }
         return buildDescription(tree).setMessage(defaultMessage(match.get())).build();
+    }
+
+    private ForbiddenApiMatcher matcher(VisitorState state) {
+        @Var ForbiddenApiMatcher current = matcher;
+        if (current == null) {
+            current = ForbiddenApiConfig.load(state.errorProneOptions().getFlags());
+            matcher = current;
+        }
+        return current;
     }
 
     private static String defaultMessage(ForbiddenSignature signature) {
