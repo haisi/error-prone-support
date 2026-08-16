@@ -1,0 +1,119 @@
+name: Nightly PIT Mutation Testing
+
+# Deliberately its own workflow, separate from ci.yml: mutation testing is much slower than the
+# regular test suite, so it must never run on every push/PR. It runs nightly instead, plus
+# on-demand via workflow_dispatch.
+on:
+  schedule:
+    # Around 02:00 UTC every day. GitHub's schedule triggers run on a best-effort basis and can be
+    # delayed under load, so treat this as "approximately", not "exactly", 02:00 UTC.
+    - cron: "0 2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  # Needed by the final job to publish the report to GitHub Pages.
+  pages: write
+  id-token: write
+  # Needed by the "check" job to list this workflow's past runs via the REST API.
+  actions: read
+
+# Shares its concurrency group with pages.yml (the main site-deploy workflow): both workflows
+# publish to the same GitHub Pages environment, and running them at the same time could let one
+# deployment clobber the other mid-flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history is required so the check script can count commits since the last
+          # successful PIT run with `git rev-list`.
+          fetch-depth: 0
+
+      - name: Check whether new commits exist since the last successful PIT run
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/should-run-pit.sh
+
+  mutation-test:
+    needs: check
+    if: needs.check.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          # Kept in sync with <maven.compiler.release> in pom.xml. A lower JDK here would fail to
+          # compile the project, since Maven targets release 25.
+          java-version: "25"
+          distribution: temurin
+          cache: maven
+
+      - name: Build, test and generate coverage/test reports
+        # Same command pages.yml uses to build the site. Running it here means this workflow
+        # reproduces the exact same non-PIT site content (coverage + test reports) from scratch,
+        # rather than trying to fetch and merge a previous deployment - simpler, and just as
+        # correct, since that content is fully derived from the repo at the current commit anyway.
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      - name: Run PIT mutation testing
+        # Invoked as a direct goal against the classes `verify` just compiled. The pitest-maven
+        # plugin in pom.xml has no <executions>, so this is the only place mutation testing ever
+        # runs - `verify` above never triggers it.
+        run: ./mvnw --batch-mode --no-transfer-progress org.pitest:pitest-maven:mutationCoverage
+
+      - name: Generate mutation score badge
+        run: |
+          .github/scripts/generate-mutation-badge.sh \
+            target/pit-reports/mutations.xml \
+            target/pit-reports/badge.svg
+
+      - name: Upload mutation report as a build artifact
+        # Lets pages.yml carry this report forward into every regular push-triggered deploy in
+        # between nightly runs (see fetch-latest-pit-report.sh) - without this, an ordinary push
+        # would deploy a site with no knowledge of /pit/ and silently wipe out what this workflow
+        # just published, since both workflows deploy the *entire* site content each time.
+        uses: actions/upload-artifact@v4
+        with:
+          name: pit-report
+          path: target/pit-reports
+
+      - name: Assemble site
+        run: |
+          rm -rf site
+          mkdir -p site
+          cp -r docs/. site/
+          cp -r target/site/jacoco site/coverage
+          cp -r target/site/tests site/tests
+          # Mutation report lives under /pit/ so it sits alongside, not instead of, the rest of
+          # the project website.
+          mkdir -p site/pit
+          cp -r target/pit-reports/. site/pit/
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    # If `mutation-test` is skipped (should_run == 'false'), this job is skipped too - GitHub
+    # Actions propagates "skipped" through `needs` automatically, no extra `if` required here.
+    needs: mutation-test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
