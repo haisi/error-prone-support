@@ -78,9 +78,11 @@ public final class ForbiddenApiMatcher {
             case UsageKey.FieldUsage u ->
                 Optional.ofNullable(fieldsByKey.get(fieldKey(u.ownerClassName(), u.fieldName())));
             case UsageKey.MethodUsage u ->
-                matchOverload(methodsByKey.get(methodKey(u.ownerClassName(), u.methodName())), u.parameterTypes());
+                matchOverload(
+                        methodsByKey.getOrDefault(methodKey(u.ownerClassName(), u.methodName()), List.of()),
+                        u.parameterTypes());
             case UsageKey.ConstructorUsage u ->
-                matchOverload(constructorsByKey.get(u.ownerClassName()), u.parameterTypes());
+                matchOverload(constructorsByKey.getOrDefault(u.ownerClassName(), List.of()), u.parameterTypes());
         };
     }
 
@@ -113,9 +115,6 @@ public final class ForbiddenApiMatcher {
 
     private static <S extends ForbiddenSignature> Optional<ForbiddenSignature> matchOverload(
             List<S> candidates, List<String> parameterTypes) {
-        if (candidates == null) {
-            return Optional.empty();
-        }
         for (S candidate : candidates) {
             List<String> candidateParameterTypes = candidate instanceof MethodSignature method
                     ? method.parameterTypes()

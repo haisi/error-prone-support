@@ -1,0 +1,60 @@
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which part of the version to bump"
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A push made with the default GITHUB_TOKEN doesn't trigger other workflows (e.g. CI on
+          # this push), so use a real PAT instead. Falls back to the default token (no PAT needed,
+          # but the trigger issue applies) if the RELEASE_PAT secret hasn't been set up yet, so
+          # this step never hard-fails for its absence.
+          token: ${{ secrets.RELEASE_PAT || github.token }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: "25"
+          distribution: temurin
+          cache: maven
+
+      - name: Compute new version
+        id: version
+        run: |
+          currentVersion=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          versionCore=$(cut -d'-' -f1 <<< "$currentVersion")
+          IFS='.' read -r major minor patch <<< "$versionCore"
+          case "${{ inputs.bump }}" in
+            major) newVersion="$((major + 1)).0.0" ;;
+            minor) newVersion="$major.$((minor + 1)).0" ;;
+            patch) newVersion="$major.$minor.$((patch + 1))" ;;
+          esac
+          echo "Bumping $currentVersion -> $newVersion"
+          echo "new=$newVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Set project version
+        run: ./mvnw --batch-mode versions:set -DnewVersion=${{ steps.version.outputs.new }} -DgenerateBackupPoms=false
+
+      - name: Commit pom.xml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*pom.xml'
+          git commit -m "build: prepare release ${{ steps.version.outputs.new }}"
+          git push

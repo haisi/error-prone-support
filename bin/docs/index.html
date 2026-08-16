@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bugpatterns</title>
+<meta name="description" content="Custom Error Prone bug patterns, starting with a configurable ForbiddenApi checker for signature-based API bans.">
+<link rel="canonical" href="https://haisi.github.io/error-prone-support/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232f6f5e'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  /* TODO: swap --accent (and the favicon fill above) for your project's own color. */
+  :root {
+    --bg: #f7f8f7;
+    --surface: #ffffff;
+    --ink: #182420;
+    --ink-soft: #4c5b55;
+    --line: #dbe3df;
+    --accent: #2f6f5e;
+    --accent-ink: #ffffff;
+    --code-bg: #eef2f0;
+    --code-ink: #1c2a25;
+    --shadow: 0 1px 2px rgba(24, 36, 32, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101512;
+      --surface: #161e1a;
+      --ink: #e8ede9;
+      --ink-soft: #a9b7b0;
+      --line: #29342e;
+      --accent: #63c2a2;
+      --accent-ink: #08140f;
+      --code-bg: #0e1613;
+      --code-ink: #d9e5df;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); }
+
+  header.hero {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 4.5rem 1.5rem 2.5rem;
+    text-align: center;
+  }
+
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    margin-bottom: 1.25rem;
+  }
+
+  header.hero h1 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.75rem;
+    text-wrap: balance;
+  }
+
+  header.hero p.tagline {
+    color: var(--ink-soft);
+    max-width: 46ch;
+    margin: 0 auto;
+    font-size: 1.05rem;
+  }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: 1.5rem 0 0;
+  }
+  .badges img { height: 20px; display: block; }
+
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 1.5rem 5rem;
+  }
+
+  section { margin: 3rem 0; }
+
+  h2 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0 0 0.9rem;
+  }
+
+  p { max-width: 68ch; }
+
+  pre {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    border: 1px solid var(--line);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  p code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.88em; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .card h3 {
+    font-size: 0.95rem;
+    margin: 0 0 0.4rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .card p { margin: 0; font-size: 0.92rem; color: var(--ink-soft); }
+
+  footer {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+  footer a { color: var(--ink-soft); }
+  footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="mark" aria-hidden="true">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 12.5l5 5L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <h1>bugpatterns</h1>
+  <p class="tagline">Custom Error Prone bug patterns, starting with a configurable ForbiddenApi checker for signature-based API bans.</p>
+  <div class="badges">
+    <a href="https://github.com/haisi/error-prone-support/actions/workflows/ci.yml"><img src="https://github.com/haisi/error-prone-support/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+    <a href="https://central.sonatype.com/artifact/li.selman.error-prone/bugpatterns"><img src="https://img.shields.io/maven-central/v/li.selman.error-prone/bugpatterns.svg" alt="Maven Central version"></a>
+    <a href="https://javadoc.io/doc/li.selman.error-prone/bugpatterns"><img src="https://javadoc.io/badge2/li.selman.error-prone/bugpatterns/javadoc.svg" alt="Javadoc"></a>
+    <a href="https://coveralls.io/github/haisi/error-prone-support?branch=main"><img src="https://coveralls.io/repos/github/haisi/error-prone-support/badge.svg?branch=main" alt="Coverage Status"></a>
+    <a href="https://github.com/haisi/error-prone-support/blob/main/LICENSE"><img src="https://img.shields.io/github/license/haisi/error-prone-support" alt="License"></a>
+  </div>
+</header>
+
+<main>
+  <!-- TODO: replace the placeholder sections below with your library's actual pitch. -->
+  <section>
+    <h2>The problem</h2>
+    <p>
+      Describe the problem this library solves in a sentence or two — what's awkward, error-prone, or
+      missing without it.
+    </p>
+  </section>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Card one</h3>
+        <p>One concrete capability, in plain language.</p>
+      </div>
+      <div class="card">
+        <h3>Card two</h3>
+        <p>A second capability.</p>
+      </div>
+      <div class="card">
+        <h3>Card three</h3>
+        <p>What it deliberately doesn't do, or how it stays out of the way.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Usage</h2>
+    <p>Add the dependency (see <a href="https://github.com/haisi/error-prone-support/releases">latest release</a> for the version):</p>
+    <pre><code>&lt;dependency&gt;
+    &lt;groupId&gt;li.selman.error-prone&lt;/groupId&gt;
+    &lt;artifactId&gt;bugpatterns&lt;/artifactId&gt;
+    &lt;version&gt;VERSION&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+    <p>Full walkthrough is in the
+      <a href="https://github.com/haisi/error-prone-support#readme">README</a>.</p>
+  </section>
+</main>
+
+<footer>
+  <a href="https://github.com/haisi/error-prone-support">GitHub</a>
+  <a href="https://central.sonatype.com/artifact/li.selman.error-prone/bugpatterns">Maven Central</a>
+  <a href="https://javadoc.io/doc/li.selman.error-prone/bugpatterns">Javadoc</a>
+  <a href="tests/">Test report</a>
+  <a href="coverage/">Test coverage</a>
+  <a href="https://github.com/haisi/error-prone-support/blob/main/LICENSE">Apache-2.0</a>
+  <a href="https://github.com/haisi/error-prone-support/issues">Issues</a>
+</footer>
+
+</body>
+</html>

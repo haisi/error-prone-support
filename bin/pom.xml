@@ -192,14 +192,8 @@
                     exercising ForbiddenApiChecker/ASTHelpers which reference javac internals
                     directly - the forked JVM doesn't inherit .mvn/jvm.config, so the same JVM
                     add-exports/add-opens set needs repeating here.
-
-                    The leading @{argLine} carries forward the -javaagent flag that
-                    jacoco:prepare-agent injects into that same property - without it, this
-                    hardcoded <argLine> silently replaces JaCoCo's, coverage stops being collected,
-                    and jacoco:check downgrades to a no-op ("missing execution data file") instead
-                    of failing the build, defeating the qa profile's whole 100% coverage gate.
                     -->
-                    <argLine>@{argLine} --add-exports jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
+                    <argLine>--add-exports jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
                         --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
                         --add-exports jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED
                         --add-exports jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED
@@ -515,31 +509,6 @@
                         <configuration>
                             <doclint>none</doclint>
                             <failOnError>false</failOnError>
-                            <!--
-                            Same reason as the base-build maven-compiler-plugin block above: the
-                            javadoc tool parses these sources too, so it independently needs
-                            access to com.sun.tools.javac.* to resolve the imports/types used by
-                            ForbiddenApiChecker. Without these, javadoc generation silently fails
-                            (failOnError above swallows it) and the attached javadoc jar ends up
-                            empty/broken.
-                            -->
-                            <!--
-                            additionalJOption (singular) only keeps the LAST value when repeated -
-                            additionalOptions (plural, list of additionalOption) is the parameter
-                            that actually accepts multiple standalone javadoc-tool options.
-                            -->
-                            <additionalOptions>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</additionalOption>
-                                <additionalOption>--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</additionalOption>
-                            </additionalOptions>
                         </configuration>
                         <executions>
                             <execution>

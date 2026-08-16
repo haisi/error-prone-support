@@ -17,6 +17,7 @@ public sealed interface UsageKey {
 
     /** A method invocation or method reference. */
     record MethodUsage(String ownerClassName, String methodName, List<String> parameterTypes) implements UsageKey {
+        @SuppressWarnings("Var") // Normalizing a compact constructor's own parameter, not a field.
         public MethodUsage {
             parameterTypes = List.copyOf(parameterTypes);
         }
@@ -24,6 +25,7 @@ public sealed interface UsageKey {
 
     /** A constructor invocation or constructor reference ({@code Foo::new}). */
     record ConstructorUsage(String ownerClassName, List<String> parameterTypes) implements UsageKey {
+        @SuppressWarnings("Var") // Normalizing a compact constructor's own parameter, not a field.
         public ConstructorUsage {
             parameterTypes = List.copyOf(parameterTypes);
         }

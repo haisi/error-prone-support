@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import li.selman.errorprone.bugpatterns.matcher.ForbiddenApiMatcher;
 import li.selman.errorprone.bugpatterns.model.ForbiddenSignature;
 
@@ -27,38 +28,36 @@ public final class ForbiddenApiConfig {
     private ForbiddenApiConfig() {}
 
     public static ForbiddenApiMatcher load(ErrorProneFlags flags) {
-        List<ForbiddenSignature> signatures = new ArrayList<>();
-        for (String bundleName : flags.getListOrEmpty(BUNDLES_FLAG)) {
-            signatures.addAll(loadBundle(bundleName));
+        try {
+            List<ForbiddenSignature> signatures = new ArrayList<>();
+            for (String bundleName : flags.getListOrEmpty(BUNDLES_FLAG)) {
+                signatures.addAll(loadBundle(bundleName));
+            }
+            for (String path : flags.getListOrEmpty(SIGNATURES_FLAG)) {
+                signatures.addAll(loadFile(path));
+            }
+            return ForbiddenApiMatcher.of(signatures);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load ForbiddenApi configuration", e);
         }
-        for (String path : flags.getListOrEmpty(SIGNATURES_FLAG)) {
-            signatures.addAll(loadFile(path));
-        }
-        return ForbiddenApiMatcher.of(signatures);
     }
 
-    private static List<ForbiddenSignature> loadBundle(String bundleName) {
+    private static List<ForbiddenSignature> loadBundle(String bundleName) throws IOException {
         if (!BuiltinBundles.isKnown(bundleName)) {
             throw new ForbiddenSignatureParseException(
                     "Unknown ForbiddenApi bundle '" + bundleName + "'. Known bundles: " + BuiltinBundles.NAMES);
         }
         String resourcePath = "/forbidden-api/" + bundleName + ".txt";
-        try (InputStream in = ForbiddenApiConfig.class.getResourceAsStream(resourcePath)) {
-            if (in == null) {
-                throw new ForbiddenSignatureParseException("Bundle resource '" + resourcePath + "' is missing");
-            }
+        // Bundle resources are shipped in this jar's own classpath and kept in sync with
+        // BuiltinBundles.NAMES by construction, so a missing resource here would be a packaging
+        // bug rather than a reachable user-facing state.
+        try (InputStream in = Objects.requireNonNull(ForbiddenApiConfig.class.getResourceAsStream(resourcePath))) {
             return ForbiddenSignatureParser.parse("bundle:" + bundleName, readLines(in));
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read ForbiddenApi bundle '" + bundleName + "'", e);
         }
     }
 
-    private static List<ForbiddenSignature> loadFile(String path) {
-        try {
-            return ForbiddenSignatureParser.parse(path, Files.readAllLines(Path.of(path), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read ForbiddenApi signature file '" + path + "'", e);
-        }
+    private static List<ForbiddenSignature> loadFile(String path) throws IOException {
+        return ForbiddenSignatureParser.parse(path, Files.readAllLines(Path.of(path), StandardCharsets.UTF_8));
     }
 
     private static List<String> readLines(InputStream in) throws IOException {

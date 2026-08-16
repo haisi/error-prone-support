@@ -9,6 +9,7 @@ public record MethodSignature(
         String ownerClassName, String methodName, List<String> parameterTypes, Optional<String> message)
         implements ForbiddenSignature {
 
+    @SuppressWarnings("Var") // Normalizing a compact constructor's own parameter, not a field.
     public MethodSignature {
         Objects.requireNonNull(ownerClassName);
         Objects.requireNonNull(methodName);

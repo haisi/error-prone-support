@@ -1,0 +1,5 @@
+# jdk-system-out: direct use of the JVM's standard streams, which bypass whatever logging
+# framework a project has configured.
+
+java.lang.System#out @ Use the configured logger instead of System.out
+java.lang.System#err @ Use the configured logger instead of System.err

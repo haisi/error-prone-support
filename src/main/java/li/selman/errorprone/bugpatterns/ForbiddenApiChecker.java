@@ -6,6 +6,7 @@ import com.google.auto.service.AutoService;
 import com.google.errorprone.BugPattern;
 import com.google.errorprone.ErrorProneFlags;
 import com.google.errorprone.VisitorState;
+import com.google.errorprone.annotations.Var;
 import com.google.errorprone.bugpatterns.BugChecker;
 import com.google.errorprone.matchers.Description;
 import com.google.errorprone.util.ASTHelpers;
@@ -19,6 +20,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import java.util.List;
 import java.util.Optional;
+import javax.inject.Inject;
 import javax.lang.model.element.ElementKind;
 import li.selman.errorprone.bugpatterns.config.ForbiddenApiConfig;
 import li.selman.errorprone.bugpatterns.matcher.ForbiddenApiMatcher;
@@ -40,6 +42,7 @@ import li.selman.errorprone.bugpatterns.model.ForbiddenSignature;
  */
 @AutoService(BugChecker.class)
 @BugPattern(name = "ForbiddenApi", summary = "Usage of a forbidden API", severity = ERROR)
+@SuppressWarnings("BugPatternNaming") // "ForbiddenApi" (not "ForbiddenApiChecker") is the name required by spec.
 public final class ForbiddenApiChecker extends BugChecker
         implements BugChecker.IdentifierTreeMatcher,
                 BugChecker.MemberSelectTreeMatcher,
@@ -49,6 +52,7 @@ public final class ForbiddenApiChecker extends BugChecker
 
     private final ForbiddenApiMatcher matcher;
 
+    @Inject
     public ForbiddenApiChecker(ErrorProneFlags flags) {
         this.matcher = ForbiddenApiConfig.load(flags);
     }
@@ -65,10 +69,10 @@ public final class ForbiddenApiChecker extends BugChecker
 
     @Override
     public Description matchMethodInvocation(MethodInvocationTree tree, VisitorState state) {
+        // ASTHelpers.getSymbol never returns null here: Error Prone only runs on trees that
+        // already passed FLOW analysis (see --should-stop=ifError=FLOW), by which point every
+        // method invocation in a successfully-compiling program has a resolved MethodSymbol.
         Symbol.MethodSymbol symbol = ASTHelpers.getSymbol(tree);
-        if (symbol == null) {
-            return Description.NO_MATCH;
-        }
         return report(
                 new UsageKey.MethodUsage(
                         ownerName(symbol), symbol.getSimpleName().toString(), parameterTypeNames(symbol, state)),
@@ -78,18 +82,12 @@ public final class ForbiddenApiChecker extends BugChecker
     @Override
     public Description matchNewClass(NewClassTree tree, VisitorState state) {
         Symbol.MethodSymbol symbol = ASTHelpers.getSymbol(tree);
-        if (symbol == null) {
-            return Description.NO_MATCH;
-        }
         return report(new UsageKey.ConstructorUsage(ownerName(symbol), parameterTypeNames(symbol, state)), tree);
     }
 
     @Override
     public Description matchMemberReference(MemberReferenceTree tree, VisitorState state) {
         Symbol.MethodSymbol symbol = ASTHelpers.getSymbol(tree);
-        if (symbol == null) {
-            return Description.NO_MATCH;
-        }
         UsageKey usage = symbol.isConstructor()
                 ? new UsageKey.ConstructorUsage(ownerName(symbol), parameterTypeNames(symbol, state))
                 : new UsageKey.MethodUsage(
@@ -105,9 +103,6 @@ public final class ForbiddenApiChecker extends BugChecker
      * would report the same call/instantiation twice.
      */
     private Description matchClassOrFieldSymbol(Symbol symbol, Tree tree) {
-        if (symbol == null) {
-            return Description.NO_MATCH;
-        }
         if (symbol instanceof Symbol.ClassSymbol classSymbol) {
             return report(new UsageKey.TypeUsage(classSymbol.getQualifiedName().toString()), tree);
         }
@@ -132,7 +127,7 @@ public final class ForbiddenApiChecker extends BugChecker
         return signature
                 .message()
                 .map(message -> signature.displayName() + " is forbidden. " + message)
-                .orElse(signature.displayName() + " is forbidden.");
+                .orElseGet(() -> signature.displayName() + " is forbidden.");
     }
 
     private static String ownerName(Symbol symbol) {
@@ -146,8 +141,8 @@ public final class ForbiddenApiChecker extends BugChecker
     }
 
     private static String typeName(Type type) {
-        int arrayDepth = 0;
-        Type current = type;
+        @Var int arrayDepth = 0;
+        @Var Type current = type;
         while (current instanceof Type.ArrayType arrayType) {
             arrayDepth++;
             current = arrayType.elemtype;

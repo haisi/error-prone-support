@@ -14,15 +14,14 @@ States: `open`, `in_progress`, `done`.
 [done]        2026-08-16 Author built-in bundles: jdk-system-out, jdk-default-charset, jdk-internals (verified against JDK 25 via javap)
 [done]        2026-08-16 Implement ForbiddenApiChecker (5 tree matchers: Identifier/MemberSelect/MethodInvocation/NewClass/MemberReference)
 [done]        2026-08-16 Register checker via @AutoService(BugChecker.class) (per architect review)
-[done]        2026-08-16 Parser unit tests (grammar, comments, malformed input, messages)
-[done]        2026-08-16 Matcher unit tests (package glob boundary/adversarial cases)
-[done]        2026-08-16 Error Prone integration tests via CompilationTestHelper (all constructs)
-[done]        2026-08-16 Built-in bundle tests (jdk-system-out live compile; charset/internals via config-loader tests)
-[done]        2026-08-16 No-duplicate-diagnostic tests
+[open]        2026-08-16 Parser unit tests (grammar, comments, malformed input, messages)
+[open]        2026-08-16 Matcher unit tests (package glob boundary/adversarial cases)
+[open]        2026-08-16 Error Prone integration tests via CompilationTestHelper (all constructs)
+[open]        2026-08-16 Built-in bundle tests
+[open]        2026-08-16 No-duplicate-diagnostic tests
 [open]        2026-08-16 Maven consumer example project
 [open]        2026-08-16 README documentation
-[done]        2026-08-16 Remove archetype Placeholder class/test once real API exists
-[done]        2026-08-16 Reach 100% line+branch JaCoCo coverage honestly (no untestable defensive code)
+[open]        2026-08-16 Remove archetype Placeholder class/test once real API exists
 [open]        2026-08-16 Code review pass (independent sub-agent)
 [open]        2026-08-16 QA / adversarial test review pass (independent sub-agent)
 [open]        2026-08-16 Fix findings from code review + QA
@@ -84,41 +83,6 @@ States: `open`, `in_progress`, `done`.
   inside an XML comment body) and making the whole POM unparseable with a confusing cascade of
   unrelated-looking IDE errors. Fixed by rewording comments to avoid literal `--`; worth remembering
   for any future edits mentioning CLI double-dash flags in pom.xml comments.
-
-## Test-run findings (applied)
-
-- `ForbiddenApiMatcher`'s Var/Refaster/coverage-driven cleanups: removed 4 `if (symbol == null)`
-  guards in `ForbiddenApiChecker` (matchMethodInvocation/matchNewClass/matchMemberReference/
-  matchClassOrFieldSymbol) - genuinely unreachable given Error Prone only invokes matchers after
-  successful FLOW analysis (`--should-stop=ifError=FLOW`), so a resolved tree's symbol is never
-  null in a program that compiles at all. Documented with a comment rather than left silently
-  removed, since it's a real (if narrow) argument about Error Prone's own invocation contract, not
-  just "coverage says so."
-- `ForbiddenApiConfig`: consolidated `loadBundle`/`loadFile`'s per-method `catch (IOException)`
-  into one at the `load()` entry point (both now `throws IOException` internally), and replaced the
-  "bundle resource stream is null" `if`+custom-exception with a plain `Objects.requireNonNull` -
-  both branches were unreachable in practice (bundle `.txt` resources are shipped in our own jar
-  and kept in sync with `BuiltinBundles.NAMES` by construction) and the consolidation means the one
-  remaining catch is already exercised by the missing-signature-file test.
-- **Real bug, not just a test artifact**: the custom `maven-surefire-plugin` `<argLine>` added for
-  `CompilationTestHelper`'s add-exports/add-opens *replaced* (rather than extended) the
-  `-javaagent` flag `jacoco:prepare-agent` injects into that same `argLine` property. Result:
-  `mvn verify` reported `[INFO] Skipping JaCoCo execution due to missing execution data file` and
-  the 100% coverage gate silently no-op'd instead of failing - the opposite of fail-safe. Fixed by
-  prefixing the argLine with `@{argLine}`.
-- `maven-javadoc-plugin`'s `<additionalJOption>` is single-valued - repeating it 10 times (once per
-  add-exports flag) silently kept only the last one, so the javadoc jar built "successfully" while
-  actually being empty (`failOnError=false` swallowed the real failure). Fixed by switching to the
-  plural `<additionalOptions><additionalOption>...` list parameter, which is the one that actually
-  accepts multiple standalone javadoc-tool options.
-- `String.format(String, Object...)` and `String.format("%d", 1)` resolve to the *same* declared
-  `MethodSymbol` regardless of call-site arg count (varargs desugars to one array-typed parameter
-  in the symbol itself) - an overload-distinction test needs genuinely different overloads (used
-  `Integer#valueOf(int)` vs `Integer#valueOf(String)` instead).
-- `@Var` cannot be applied to a record component in the record header (conflicts with the implicit
-  `final` field) even though that's literally what the `Var` checker's own suggested fix said to
-  do - applied `@SuppressWarnings("Var")` to the compact constructor instead, since the reassigned
-  variable there is the constructor's own parameter, not the field.
 
 ## Notes
 
