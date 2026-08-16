@@ -159,6 +159,7 @@ Select with `-XepOpt:ForbiddenApi:Bundles=name1,name2`. Source: `src/main/resour
 | `jdk-system-out` | `System#out`, `System#err` |
 | `jdk-default-charset` | JDK APIs that implicitly use the JVM's platform default charset instead of an explicit `Charset` (`String` byte constructors/`getBytes()`, `InputStreamReader`/`OutputStreamWriter`, `FileReader`/`FileWriter`, `Scanner`) - each verified against the real JDK 25 API via `javap`, not guessed |
 | `jdk-internals` | `sun.**`, `jdk.internal.**`, `com.sun.**` - see the caveat in that bundle's own file: several `com.sun.*` subpackages (e.g. `com.sun.net.httpserver`) are actually supported public API, so this is a blunter ban than the other two |
+| `non-jspecify-nullable` | Nullability annotations from libraries other than [jSpecify](https://jspecify.dev): JSR-305 (`javax.annotation.{Nullable,Nonnull,CheckForNull}`), Spring (`org.springframework.lang.*`), Micrometer (`io.micrometer.core.lang.*`), JetBrains (`org.jetbrains.annotations.{Nullable,NotNull}`), AndroidX/`android.support` (`{androidx,android.support}.annotation.{Nullable,NonNull}`), Checker Framework (`org.checkerframework.checker.nullness.qual.*`), SpotBugs/FindBugs (`edu.umd.cs.findbugs.annotations.*`), and Eclipse JDT (`org.eclipse.jdt.annotation.*`) |
 
 ### Adding a new bundle
 

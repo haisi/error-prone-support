@@ -11,7 +11,8 @@ import java.util.List;
  */
 public final class BuiltinBundles {
 
-    public static final List<String> NAMES = List.of("jdk-system-out", "jdk-default-charset", "jdk-internals");
+    public static final List<String> NAMES =
+            List.of("jdk-system-out", "jdk-default-charset", "jdk-internals", "non-jspecify-nullable");
 
     private BuiltinBundles() {}
 

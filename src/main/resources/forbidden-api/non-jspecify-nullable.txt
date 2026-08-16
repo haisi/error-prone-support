@@ -1,0 +1,48 @@
+# non-jspecify-nullable: nullability annotations from libraries other than jSpecify
+# (https://jspecify.dev). Use org.jspecify.annotations.Nullable / NonNull / NullMarked /
+# NullUnmarked instead - jSpecify is the vendor-neutral standard that JDT, Checker Framework,
+# IntelliJ, Error Prone's NullAway and others all recognize, so mixing it with any of the
+# annotations below just fragments a codebase's nullability story across incompatible types.
+
+# JSR-305 (javax.annotation.*) - abandoned as a JSR, but still widely used via the
+# com.google.code.findbugs:jsr305 jar.
+javax.annotation.Nullable @ Use org.jspecify.annotations.Nullable instead
+javax.annotation.Nonnull @ Use org.jspecify.annotations.NonNull instead
+javax.annotation.CheckForNull @ Use org.jspecify.annotations.Nullable instead
+
+# Spring Framework
+org.springframework.lang.Nullable @ Use org.jspecify.annotations.Nullable instead
+org.springframework.lang.NonNull @ Use org.jspecify.annotations.NonNull instead
+org.springframework.lang.NonNullApi @ Use org.jspecify.annotations.NullMarked instead
+org.springframework.lang.NonNullFields @ Use org.jspecify.annotations.NullMarked instead
+
+# Micrometer
+io.micrometer.core.lang.Nullable @ Use org.jspecify.annotations.Nullable instead
+io.micrometer.core.lang.NonNull @ Use org.jspecify.annotations.NonNull instead
+io.micrometer.core.lang.NonNullApi @ Use org.jspecify.annotations.NullMarked instead
+io.micrometer.core.lang.NonNullFields @ Use org.jspecify.annotations.NullMarked instead
+
+# JetBrains (IntelliJ / Kotlin interop)
+org.jetbrains.annotations.Nullable @ Use org.jspecify.annotations.Nullable instead
+org.jetbrains.annotations.NotNull @ Use org.jspecify.annotations.NonNull instead
+
+# AndroidX / legacy android.support
+androidx.annotation.Nullable @ Use org.jspecify.annotations.Nullable instead
+androidx.annotation.NonNull @ Use org.jspecify.annotations.NonNull instead
+android.support.annotation.Nullable @ Use org.jspecify.annotations.Nullable instead
+android.support.annotation.NonNull @ Use org.jspecify.annotations.NonNull instead
+
+# Checker Framework
+org.checkerframework.checker.nullness.qual.Nullable @ Use org.jspecify.annotations.Nullable instead
+org.checkerframework.checker.nullness.qual.NonNull @ Use org.jspecify.annotations.NonNull instead
+org.checkerframework.checker.nullness.qual.MonotonicNonNull @ Use org.jspecify.annotations.Nullable instead, and stabilize the flow-sensitive guarantee in code rather than in the type
+
+# SpotBugs / FindBugs
+edu.umd.cs.findbugs.annotations.Nullable @ Use org.jspecify.annotations.Nullable instead
+edu.umd.cs.findbugs.annotations.NonNull @ Use org.jspecify.annotations.NonNull instead
+edu.umd.cs.findbugs.annotations.CheckForNull @ Use org.jspecify.annotations.Nullable instead
+
+# Eclipse JDT
+org.eclipse.jdt.annotation.Nullable @ Use org.jspecify.annotations.Nullable instead
+org.eclipse.jdt.annotation.NonNull @ Use org.jspecify.annotations.NonNull instead
+org.eclipse.jdt.annotation.NonNullByDefault @ Use org.jspecify.annotations.NullMarked instead

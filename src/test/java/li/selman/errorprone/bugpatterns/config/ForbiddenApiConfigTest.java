@@ -107,6 +107,21 @@ final class ForbiddenApiConfigTest {
     }
 
     @Test
+    void loadsTheNonJspecifyNullableBundle() {
+        ForbiddenApiMatcher matcher = ForbiddenApiConfig.load(
+                ErrorProneFlags.fromMap(Map.of("ForbiddenApi:Bundles", "non-jspecify-nullable")));
+
+        assertThat(matcher.match(new UsageKey.TypeUsage("javax.annotation.Nullable")))
+                .isPresent();
+        assertThat(matcher.match(new UsageKey.TypeUsage("org.springframework.lang.NonNullApi")))
+                .isPresent();
+        assertThat(matcher.match(new UsageKey.TypeUsage("io.micrometer.core.lang.Nullable")))
+                .isPresent();
+        assertThat(matcher.match(new UsageKey.TypeUsage("org.jspecify.annotations.Nullable")))
+                .isEmpty();
+    }
+
+    @Test
     void allBuiltinBundlesLoadWithoutError() {
         for (String bundleName : BuiltinBundles.NAMES) {
             ForbiddenApiMatcher matcher =
@@ -117,7 +132,7 @@ final class ForbiddenApiConfigTest {
 
     @Test
     void allBundleNamesAreKnown() {
-        assertThat(List.of("jdk-system-out", "jdk-default-charset", "jdk-internals"))
+        assertThat(List.of("jdk-system-out", "jdk-default-charset", "jdk-internals", "non-jspecify-nullable"))
                 .containsExactlyInAnyOrderElementsOf(BuiltinBundles.NAMES);
     }
 }
