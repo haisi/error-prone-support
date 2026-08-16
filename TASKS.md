@@ -30,6 +30,8 @@ States: `open`, `in_progress`, `done`.
 [done]        2026-08-16 Fix constructor-injection bug found by consumer-example validation (see below)
 [done]        2026-08-16 Full build verification (./mvnw verify — Checkstyle/Spotless/NullAway/JaCoCo 100%)
 [done]        2026-08-16 Final report: structure, design decisions, limitations, build/test commands
+[done]        2026-08-16 Second code-review + QA round after the constructor-injection fix
+[done]        2026-08-16 Fix findings from second round (Context-scoped caching, isolated consumer-example validation, README clarifications)
 ```
 
 ## Architecture review findings (applied)
@@ -121,6 +123,61 @@ States: `open`, `in_progress`, `done`.
   `final` field) even though that's literally what the `Var` checker's own suggested fix said to
   do - applied `@SuppressWarnings("Var")` to the compact constructor instead, since the reassigned
   variable there is the constructor's own parameter, not the field.
+
+## Second review round findings (applied)
+
+Ran a fresh independent code-review pass and QA pass specifically targeting the three commits
+above (the void.class fix, the duplicate-precedence fix, and - highest risk - the constructor-
+injection removal), since that much change since the first review round warranted a fresh look
+rather than assuming it was all correct.
+
+- **Code review, medium severity, fixed**: the memoized `ForbiddenApiMatcher` was cached on a
+  plain instance field, correct only under an unverified assumption ("one checker instance per
+  compilation, never reused across compilations with different flags"). The reviewer traced actual
+  `ErrorPronePlugins.loadPlugins` behavior and confirmed this holds for the standard
+  ServiceLoader-based path, but couldn't rule out unusual build-tool scenarios (Bazel workers,
+  Gradle daemon classloader caching) reusing a discovered checker instance/classloader. Fixed by
+  switching to `VisitorState.context`-scoped caching (`context.get(ForbiddenApiMatcher.class)`/
+  `context.put(...)`) - `Context` is javac/Error Prone's own per-compilation DI container, so this
+  is correct regardless of instance-reuse assumptions, removing the whole question rather than just
+  documenting it.
+- **Code review, minor, accepted as a documented limitation, not fixed**: a malformed
+  `Signatures=`/unknown `Bundles=` failure isn't cached, so `ErrorProneScanner`'s per-node
+  `handleError` (which catches `Throwable` and continues rather than aborting) means a single
+  config typo re-throws - and re-parses the file - on every subsequent AST node instead of failing
+  once cleanly. Weighed fixing this (cache the failure too) against the added complexity being hard
+  to verify honestly under this project's 100% coverage discipline - `CompilationTestHelper`
+  already treats any thrown exception from a matcher as a hard test-harness failure regardless of
+  caching, so there's no clean way to write a positive test proving "one clear diagnostic, not
+  flooding." Left as-is; noise on a genuinely malformed config is a build-log annoyance, not a
+  correctness bug (the build still fails, which is the property that actually matters).
+- **QA, real gap, fixed**: `examples/consumer-example` had only ever been built from *inside* this
+  repository, which silently supplied its own ancestor `.mvn/jvm.config` (Maven discovers
+  `.mvn/jvm.config` by walking up from the working directory regardless of reactor/module
+  membership) - so the "validated end-to-end" claim from the constructor-injection fix was real but
+  incomplete: it was never tested the way an actual separate external project would experience it.
+  The QA agent proved this by copying the example to a directory with no ancestor `.mvn` and
+  watching it fail with `IllegalAccessError: module jdk.compiler does not export
+  com.sun.tools.javac.api to unnamed module` before Error Prone even runs. Fixed by giving
+  `examples/consumer-example` its own `.mvn/jvm.config`, then re-validated both the pass and fail
+  path from a genuinely isolated directory (confirmed no ancestor `.mvn` on the path) myself.
+- **QA, confirmed existing (not new) behavior, documented**: verified via `javap` against the real
+  jar that `ErrorProneFlags` stores flags in a plain `HashMap` keyed by flag name, so two *separate*
+  `-XepOpt:ForbiddenApi:Signatures=` flag occurrences on one command line don't merge - the second
+  silently replaces the first, and the first file's signatures never load. Multiple files must be
+  comma-joined into a single `Signatures=` value instead, which does work and does exhibit correct
+  last-wins precedence. Clarified in the README (was ambiguously worded to suggest repeated flags
+  might merge).
+- Confirmed solid, no changes needed: the `void.class`-fix theory (that
+  `matchMethodInvocation`/`matchNewClass`/`matchMemberReference` can never observe a null-owner
+  symbol) held up under both agents' adversarial probing - bridge-adjacent covariant overrides,
+  record compact constructors/accessors, enum `values()`/`valueOf()`/constant bodies, annotation
+  `value()` calls, `int[]::new`, generic method references, lambda bodies - none crash. The reverse-
+  iteration duplicate-precedence fix was confirmed correct for 3+ overlapping signatures (not just
+  2), including a live compile combining a bundle with two comma-joined `Signatures=` files.
+- New regression tests from this round (36 tests, all passing) kept under
+  `src/test/java/li/selman/errorprone/bugpatterns/qa2/` - `NullOwnerAndClassLiteralQa2Test`,
+  `ThreeWayDuplicatePrecedenceQa2Test`, `LazyConfigLoadingQa2Test`.
 
 ## Consumer-example validation finding (critical, applied)
 

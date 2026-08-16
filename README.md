@@ -42,6 +42,14 @@ happens). Until then, build and install it locally:
 `maven.compiler.release`, switch to `maven.compiler.source`/`maven.compiler.target` instead, as the
 example below and [`examples/consumer-example`](examples/consumer-example) do.
 
+**Note**: the `compilerArgs` below aren't enough on their own on JDK 16+ - Maven's own JVM (the one
+running the in-process compiler) also needs the same `--add-exports`/`--add-opens` set, via a
+`.mvn/jvm.config` file at your project root (see
+[`examples/consumer-example/.mvn/jvm.config`](examples/consumer-example/.mvn/jvm.config) for a
+working copy). Without it, compilation fails with `IllegalAccessError: ... module jdk.compiler does
+not export ... to unnamed module` before Error Prone ever runs - confirmed by testing this
+project's own consumer example from a directory with no such file.
+
 Add `error_prone_core` and this project's `bugpatterns` artifact to your compiler plugin's
 `annotationProcessorPaths`, and enable the checker via `-Xep:ForbiddenApi:ERROR` and
 `-XepOpt:ForbiddenApi:Signatures=`/`Bundles=`:
@@ -121,9 +129,15 @@ Parse errors report the offending file and line number, e.g. `forbidden-apis.txt
 name '1nvalid.Name'`.
 
 **Duplicate signatures**: if the same class/field/method+overload/constructor+overload is banned
-more than once, the *last* one (in file order, and across multiple `Signatures=`/`Bundles=`
-entries - bundles are loaded before signature files) wins for its custom message; this is a
-supported way to override a bundled message, not an error.
+more than once, the *last* one (in file order, and across multiple comma-separated paths within a
+single `Signatures=` value - bundles are loaded before signature files) wins for its custom
+message; this is a supported way to override a bundled message, not an error.
+
+**Multiple signature files**: pass a single `-XepOpt:ForbiddenApi:Signatures=fileA,fileB` with
+comma-separated paths, not two separate `-XepOpt:ForbiddenApi:Signatures=` flag occurrences on the
+same command line - `ErrorProneFlags` stores flags in a plain map keyed by flag name, so a second
+occurrence silently *replaces* the first rather than merging with it, and `fileA`'s signatures
+would never load at all. The same applies to `Bundles=`.
 
 ## Built-in bundles
 

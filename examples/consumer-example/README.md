@@ -25,3 +25,11 @@ mvn compile
 `config/forbidden-apis.txt` forbids `java.util.Date`, `java.lang.System#out`, and the (here
 nonexistent, just illustrative) `com.example.shaded.**` package - see the main README for the full
 signature syntax.
+
+**`.mvn/jvm.config`**: this directory carries its own copy (the standard set required to run any
+Error Prone plugin on JDK 16+) rather than relying on any ancestor directory's - Maven discovers
+`.mvn/jvm.config` by walking up from the current directory regardless of reactor/module membership,
+which initially masked a real bug here: this example was first validated only from inside the
+parent repository (which has its own, fuller `.mvn/jvm.config`), so it silently inherited flags a
+genuinely separate project wouldn't have. Re-verified from a directory with no such ancestor - see
+`TASKS.md` in the repository root for the full story.

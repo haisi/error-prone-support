@@ -17,6 +17,7 @@ import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
+import com.sun.tools.javac.util.Context;
 import java.util.List;
 import java.util.Optional;
 import javax.lang.model.element.ElementKind;
@@ -24,7 +25,6 @@ import li.selman.errorprone.bugpatterns.config.ForbiddenApiConfig;
 import li.selman.errorprone.bugpatterns.matcher.ForbiddenApiMatcher;
 import li.selman.errorprone.bugpatterns.matcher.UsageKey;
 import li.selman.errorprone.bugpatterns.model.ForbiddenSignature;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Flags usages of APIs forbidden via {@code -XepOpt:ForbiddenApi:Signatures=<file>} and/or {@code
@@ -48,6 +48,13 @@ import org.jspecify.annotations.Nullable;
  * one (confirmed the hard way: a constructor-injected version of this checker threw {@code
  * ServiceConfigurationError: Unable to get public no-arg constructor} the moment a real consuming
  * project tried to compile against it).
+ *
+ * <p>The parsed {@link ForbiddenApiMatcher} is cached on {@link VisitorState#context}, not on an
+ * instance field: {@code Context} is javac/Error Prone's own per-compilation dependency-injection
+ * container (one fresh instance per compilation, shared by every {@link VisitorState} created
+ * within it), so caching there is correct regardless of whether a build tool ever reuses a
+ * discovered checker instance - or its classloader - across multiple compilations with different
+ * flags, a guarantee an instance field can't make on its own.
  */
 @AutoService(BugChecker.class)
 @BugPattern(name = "ForbiddenApi", summary = "Usage of a forbidden API", severity = ERROR)
@@ -58,12 +65,6 @@ public final class ForbiddenApiChecker extends BugChecker
                 BugChecker.MethodInvocationTreeMatcher,
                 BugChecker.NewClassTreeMatcher,
                 BugChecker.MemberReferenceTreeMatcher {
-
-    // Lazily initialized on first use, then stable for this checker instance's lifetime (one
-    // instance is reused across an entire compilation, and ErrorProneFlags don't change
-    // mid-compilation). Not shared across concurrent compilations - each gets its own checker
-    // instance - so a plain field is sufficient without further synchronization.
-    private @Nullable ForbiddenApiMatcher matcher;
 
     @Override
     public Description matchIdentifier(IdentifierTree tree, VisitorState state) {
@@ -143,12 +144,13 @@ public final class ForbiddenApiChecker extends BugChecker
     }
 
     private ForbiddenApiMatcher matcher(VisitorState state) {
-        @Var ForbiddenApiMatcher current = matcher;
-        if (current == null) {
-            current = ForbiddenApiConfig.load(state.errorProneOptions().getFlags());
-            matcher = current;
+        Context context = state.context;
+        @Var ForbiddenApiMatcher cached = context.get(ForbiddenApiMatcher.class);
+        if (cached == null) {
+            cached = ForbiddenApiConfig.load(state.errorProneOptions().getFlags());
+            context.put(ForbiddenApiMatcher.class, cached);
         }
-        return current;
+        return cached;
     }
 
     private static String defaultMessage(ForbiddenSignature signature) {
