@@ -51,6 +51,7 @@
     <properties>
         <archunit.version>1.4.2</archunit.version>
         <assertj.version>3.27.7</assertj.version>
+        <auto-service.version>1.1.1</auto-service.version>
 
         <error-prone-core.version>2.50.0</error-prone-core.version>
         <error-prone-support.version>0.30.0</error-prone-support.version>
@@ -59,7 +60,14 @@
 
         <jspecify.version>1.0.1</jspecify.version>
         <junit.version>6.1.2</junit.version>
-        <maven.compiler.release>25</maven.compiler.release>
+        <!--
+        javac rejects the add-exports compiler flags combined with the release flag (the
+        archetype's default), and this project's main sources need add-exports for
+        com.sun.tools.javac.* to implement a BugChecker at all - so source/target instead of
+        release, unlike a typical generated project.
+        -->
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <null-markeder.version>1.1.0</null-markeder.version>
         <nullaway.version>0.13.8</nullaway.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -78,6 +86,36 @@
             <groupId>org.jspecify</groupId>
             <artifactId>jspecify</artifactId>
             <version>${jspecify.version}</version>
+        </dependency>
+        <dependency>
+            <!--
+            The @AutoService annotation itself; the processor that generates META-INF/services from
+            it (com.google.auto.service:auto-service) is wired in as an annotationProcessorPath
+            below instead, not as a regular dependency.
+            -->
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+            <version>${auto-service.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <!--
+            BugChecker/ASTHelpers/Matcher SDK used to implement the ForbiddenApi checker itself.
+            Scope 'provided': consumers already put error_prone_core (which depends on this) on
+            their annotationProcessorPath, so it must not be bundled into our jar's compile
+            classpath - that would risk two copies of the Error Prone SDK on the processor path.
+            -->
+            <groupId>com.google.errorprone</groupId>
+            <artifactId>error_prone_check_api</artifactId>
+            <version>${error-prone-core.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <!-- CompilationTestHelper, BugCheckerRefactoringTestHelper. -->
+            <groupId>com.google.errorprone</groupId>
+            <artifactId>error_prone_test_helpers</artifactId>
+            <version>${error-prone-core.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
@@ -109,6 +147,34 @@
 
     <build>
         <plugins>
+
+            <plugin>
+                <!--
+                Unlike an ordinary library, this project's own main sources reference javac
+                internals (com.sun.tools.javac.code.Symbol/Type) directly - that's what writing an
+                Error Prone BugChecker requires. Compiling THIS module therefore needs the JPMS
+                add-exports flags below regardless of whether Error Prone/NullAway linting itself
+                is active, so this lives in the base build (unlike the rest of the qa profile's
+                compiler config below) and still applies under -Dquick.
+                -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+                <configuration>
+                    <compilerArgs>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
@@ -120,6 +186,26 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.6</version>
+                <configuration>
+                    <!--
+                    CompilationTestHelper compiles fixtures in-process inside the (forked) test JVM,
+                    exercising ForbiddenApiChecker/ASTHelpers which reference javac internals
+                    directly - the forked JVM doesn't inherit .mvn/jvm.config, so the same JVM
+                    add-exports/add-opens set needs repeating here.
+                    -->
+                    <argLine>--add-exports jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED
+                        --add-exports jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED
+                        --add-opens jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED
+                        --add-opens jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</argLine>
+                </configuration>
             </plugin>
 
             <plugin>
@@ -405,6 +491,12 @@
                                     <groupId>tech.picnic.error-prone-support</groupId>
                                     <artifactId>refaster-runner</artifactId>
                                     <version>${error-prone-support.version}</version>
+                                </path>
+                                <!-- Processes @AutoService(BugChecker.class) on ForbiddenApiChecker. -->
+                                <path>
+                                    <groupId>com.google.auto.service</groupId>
+                                    <artifactId>auto-service</artifactId>
+                                    <version>${auto-service.version}</version>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>
