@@ -19,12 +19,14 @@ States: `open`, `in_progress`, `done`.
 [done]        2026-08-16 Error Prone integration tests via CompilationTestHelper (all constructs)
 [done]        2026-08-16 Built-in bundle tests (jdk-system-out live compile; charset/internals via config-loader tests)
 [done]        2026-08-16 No-duplicate-diagnostic tests
-[open]        2026-08-16 Maven consumer example project
-[open]        2026-08-16 README documentation
+[in_progress] 2026-08-16 Maven consumer example project (written; end-to-end validation pending)
+[done]        2026-08-16 README documentation (syntax, bundles, examples, limitations, comparisons)
 [done]        2026-08-16 Remove archetype Placeholder class/test once real API exists
 [done]        2026-08-16 Reach 100% line+branch JaCoCo coverage honestly (no untestable defensive code)
-[open]        2026-08-16 Code review pass (independent sub-agent)
-[open]        2026-08-16 QA / adversarial test review pass (independent sub-agent)
+[done]        2026-08-16 Code review pass (independent sub-agent) - found real void.class NPE crash
+[done]        2026-08-16 QA / adversarial test review pass (independent sub-agent) - 20+ new tests, found duplicate-precedence bug
+[done]        2026-08-16 Fix findings from code review + QA
+[done]        2026-08-16 Rerun automated tests after fixes (108 tests, 100% coverage, both -Dquick and full verify green)
 [open]        2026-08-16 Fix findings from code review + QA
 [open]        2026-08-16 Full build verification (./mvnw verify — Checkstyle/Spotless/NullAway/JaCoCo 100%)
 [open]        2026-08-16 Final report: structure, design decisions, limitations, build/test commands
@@ -119,6 +121,63 @@ States: `open`, `in_progress`, `done`.
   `final` field) even though that's literally what the `Var` checker's own suggested fix said to
   do - applied `@SuppressWarnings("Var")` to the compact constructor instead, since the reassigned
   variable there is the constructor's own parameter, not the field.
+
+## Code review + QA findings (applied)
+
+Both an independent code-review sub-agent and an independent QA sub-agent reviewed the
+implementation; findings below, verified myself before fixing (reproduced the crash with a new
+test first, confirmed the fix, didn't just take the report on faith):
+
+- **Real NPE crash, confirmed independently**: `void.class` (and any other primitive/void class
+  literal) resolves to a synthetic `FIELD` symbol whose `ASTHelpers.enclosingClass()` returns
+  `null` (no real declaring class) - unlike every other field/enum-constant symbol. The checker's
+  `matchClassOrFieldSymbol` unconditionally dereferenced that result, crashing on any compilation
+  unit containing e.g. `Method.getReturnType() == void.class`, with *zero* signatures configured.
+  Reproduced with `ForbiddenApiCheckerTest#voidClassLiteralDoesNotCrashTheChecker` (crashed before
+  the fix, confirmed via a standalone `-Dtest=` run), then fixed with a narrowly-scoped null check
+  at that one call site only - not a broader change to `ownerName()`, since the method/constructor/
+  member-reference call sites have no known reachable null-owner scenario and adding an untestable
+  guard there would violate the "no speculative defensive code" coverage discipline applied
+  throughout this project.
+- **Duplicate-signature precedence was inconsistent, contradicting `ForbiddenApiMatcher`'s own
+  javadoc**: `ClassSignature`/`FieldSignature` (map-keyed) correctly let a later duplicate win, but
+  `PackageSignature`/`MethodSignature`/`ConstructorSignature` (list-keyed, first-match-wins linear
+  scan) let the *earlier* one win - meaning a user's own `Signatures=` file could override a bundle's
+  class/field ban but never its package/method/constructor ban. Fixed by scanning those three lists
+  in reverse order (checking the most-recently-configured entry first), making all five signature
+  kinds consistently last-wins. The QA and code-review agents independently found the same root
+  cause; both agents' test files (kept, updated to assert the corrected behavior) live under
+  `src/test/java/li/selman/errorprone/bugpatterns/qa/`.
+- Minor: `ForbiddenApiConfig.loadBundle` double-closed its resource stream (once via its own
+  try-with-resources, once via `readLines`'s nested one) - harmless for standard JDK streams but
+  sloppy; simplified to a single close site.
+- Minor: `ForbiddenApiMatcher`'s `methodsByKey`/`constructorsByKey` weren't defensively copied to
+  immutable collections like every other field on the class - fixed for consistency (not an active
+  bug: nothing mutates them post-construction today).
+- **Verified, not just trusted**: the code-review agent's claim that `case SOME_CONSTANT ->` in a
+  Java 21+ pattern-matching `switch` *does* route through `IdentifierTreeMatcher` (contradicting an
+  earlier "unverified" caveat carried over from the architecture review) - added
+  `ForbiddenApiCheckerTest#enumConstantInPatternMatchingSwitchLabelIsDetected` to confirm this
+  directly against the real compiler rather than taking either agent's word for it, and removed the
+  now-incorrect caveat from the README.
+- Separately, the QA agent found `-Dquick test` crashed Surefire outright (unrelated to the checker
+  itself): the `@{argLine}` surefire config added earlier for `CompilationTestHelper` support
+  resolves to the literal unresolved token `@{argLine}` when `jacoco:prepare-agent` hasn't run to
+  populate that property (i.e. whenever the `qa` profile is inactive), which `java` then tries to
+  open as an `@argfile` and fails. Fixed with an empty default `<argLine/>` property.
+- 20+ additional QA-authored tests for constructs not previously covered (generic method erasure,
+  varargs-vs-array matching, nested-class parameter types, inherited-method bans via subclass
+  reference, more package-glob boundary cases, CRLF/tab-tolerant parsing, records, `var` locals,
+  try-with-resources, anonymous/local classes, sealed `permits`, type-use annotations,
+  `@SuppressWarnings("ForbiddenApi")`) all passed as-is - kept as permanent regression coverage in
+  `src/test/java/li/selman/errorprone/bugpatterns/qa/ForbiddenApiCheckerQaTest.java`.
+
+## Repo-level finding (applied)
+
+- `git init` defaulted the local branch to `master`, but every workflow (`ci.yml`, `pages.yml`)
+  and every badge URL in `README.md`/`docs/index.html` assumes `main` (the archetype's convention).
+  Result: CI would never have triggered on push. Renamed the branch to `main`, pushed it, set it as
+  the GitHub default branch, and deleted the stale `master` ref.
 
 ## Notes
 

@@ -1,0 +1,5 @@
+# Example project-specific signature file. See the main README for the full DSL reference.
+
+java.util.Date @ Use java.time instead
+java.lang.System#out @ Use the configured logger instead
+com.example.shaded.** @ Shaded dependencies are implementation details

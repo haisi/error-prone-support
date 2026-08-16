@@ -178,12 +178,15 @@
 </header>
 
 <main>
-  <!-- TODO: replace the placeholder sections below with your library's actual pitch. -->
   <section>
     <h2>The problem</h2>
     <p>
-      Describe the problem this library solves in a sentence or two — what's awkward, error-prone, or
-      missing without it.
+      Banning an API by convention only works until someone forgets. Import-ban linters like
+      Checkstyle's <code>IllegalImport</code> work on source text, so they miss fully-qualified
+      references, can't tell a banned class from an unrelated one that merely shares a name prefix,
+      and don't understand inherited members. Meanwhile the bytecode-scanning
+      <a href="https://github.com/policeman-tools/forbidden-apis">forbidden-apis</a> tool runs as a
+      separate post-compile step, outside the compiler's own diagnostics.
     </p>
   </section>
 
@@ -191,16 +194,16 @@
     <h2>What it does</h2>
     <div class="cards">
       <div class="card">
-        <h3>Card one</h3>
-        <p>One concrete capability, in plain language.</p>
+        <h3>Symbol-based matching</h3>
+        <p>Runs inside javac/Error Prone itself, matching resolved symbols — catches a banned class whether it's imported, fully qualified, or used generically.</p>
       </div>
       <div class="card">
-        <h3>Card two</h3>
-        <p>A second capability.</p>
+        <h3>Simple signature files</h3>
+        <p>One line per class, package glob, field, method, or constructor — with an optional custom diagnostic message.</p>
       </div>
       <div class="card">
-        <h3>Card three</h3>
-        <p>What it deliberately doesn't do, or how it stays out of the way.</p>
+        <h3>Built-in bundles</h3>
+        <p><code>jdk-system-out</code>, <code>jdk-default-charset</code>, <code>jdk-internals</code> — ready-made bans for common JDK footguns.</p>
       </div>
     </div>
   </section>
@@ -213,7 +216,9 @@
     &lt;artifactId&gt;bugpatterns&lt;/artifactId&gt;
     &lt;version&gt;VERSION&lt;/version&gt;
 &lt;/dependency&gt;</code></pre>
-    <p>Full walkthrough is in the
+    <p>Enable it via <code>-Xep:ForbiddenApi:ERROR -XepOpt:ForbiddenApi:Signatures=config/forbidden-apis.txt</code>
+      on the Error Prone compiler plugin. Full walkthrough, signature syntax, and a buildable
+      consumer example are in the
       <a href="https://github.com/haisi/error-prone-support#readme">README</a>.</p>
   </section>
 </main>

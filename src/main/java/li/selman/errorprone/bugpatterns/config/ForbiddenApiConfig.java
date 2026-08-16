@@ -50,10 +50,10 @@ public final class ForbiddenApiConfig {
         String resourcePath = "/forbidden-api/" + bundleName + ".txt";
         // Bundle resources are shipped in this jar's own classpath and kept in sync with
         // BuiltinBundles.NAMES by construction, so a missing resource here would be a packaging
-        // bug rather than a reachable user-facing state.
-        try (InputStream in = Objects.requireNonNull(ForbiddenApiConfig.class.getResourceAsStream(resourcePath))) {
-            return ForbiddenSignatureParser.parse("bundle:" + bundleName, readLines(in));
-        }
+        // bug rather than a reachable user-facing state. readLines' own try-with-resources closes
+        // this stream - don't wrap it in a second one here too.
+        InputStream in = Objects.requireNonNull(ForbiddenApiConfig.class.getResourceAsStream(resourcePath));
+        return ForbiddenSignatureParser.parse("bundle:" + bundleName, readLines(in));
     }
 
     private static List<ForbiddenSignature> loadFile(String path) throws IOException {

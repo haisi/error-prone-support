@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+    Minimal, self-contained example showing how another Maven project consumes the ForbiddenApi
+    checker published by this repository. Not part of the reactor build (no parent, not listed as
+    a <module> anywhere) - it's meant to be read, and to be built standalone once the parent
+    project's 0.1.0-SNAPSHOT jar has been `mvn install`-ed locally. See this directory's README.md.
+    -->
+    <groupId>com.example</groupId>
+    <artifactId>consumer-example</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <bugpatterns.version>0.1.0-SNAPSHOT</bugpatterns.version>
+        <error-prone.version>2.50.0</error-prone.version>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+                <configuration>
+                    <compilerArgs>
+                        <!--
+                        Standard set required to run ANY Error Prone plugin on JDK 16+ - unrelated
+                        to ForbiddenApi specifically. Unlike this repository's own build, ordinary
+                        consumers do NOT need com.sun.tools.javac.code/.comp exports (those are
+                        only needed by code that authors a checker using ASTHelpers/Symbol/Type
+                        directly, like this repo's own ForbiddenApiChecker) - which is why this
+                        list, unlike the parent project's, stays compatible with --release.
+                        -->
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+                        <arg>--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+                        <arg>-XDcompilePolicy=simple</arg>
+                        <arg>--should-stop=ifError=FLOW</arg>
+                        <arg>
+                            -Xplugin:ErrorProne -Xep:ForbiddenApi:ERROR
+                            -XepOpt:ForbiddenApi:Signatures=${project.basedir}/config/forbidden-apis.txt
+                        </arg>
+                    </compilerArgs>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.errorprone</groupId>
+                            <artifactId>error_prone_core</artifactId>
+                            <version>${error-prone.version}</version>
+                        </path>
+                        <path>
+                            <groupId>li.selman.error-prone</groupId>
+                            <artifactId>bugpatterns</artifactId>
+                            <version>${bugpatterns.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

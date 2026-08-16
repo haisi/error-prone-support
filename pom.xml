@@ -50,6 +50,14 @@
 
     <properties>
         <archunit.version>1.4.2</archunit.version>
+        <!--
+        Empty default so the surefire argLine below's leading @{argLine} always resolves to
+        something, even under -Dquick (qa profile inactive) where jacoco:prepare-agent - the
+        goal that normally populates this same property with its -javaagent flag - never runs.
+        Without this default, @{argLine} is passed to the forked test JVM as the literal,
+        unresolved token "@{argLine}", which java then tries to open as an @argfile and fails.
+        -->
+        <argLine/>
         <assertj.version>3.27.7</assertj.version>
         <auto-service.version>1.1.1</auto-service.version>
 

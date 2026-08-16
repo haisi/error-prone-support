@@ -68,8 +68,14 @@ public final class ForbiddenApiMatcher {
                 Map.copyOf(classesByName),
                 List.copyOf(packages),
                 Map.copyOf(fieldsByKey),
-                methodsByKey,
-                constructorsByKey);
+                immutableCopyOfValues(methodsByKey),
+                immutableCopyOfValues(constructorsByKey));
+    }
+
+    private static <S> Map<String, List<S>> immutableCopyOfValues(Map<String, List<S>> map) {
+        Map<String, List<S>> copy = new HashMap<>();
+        map.forEach((key, value) -> copy.put(key, List.copyOf(value)));
+        return Map.copyOf(copy);
     }
 
     public Optional<ForbiddenSignature> match(UsageKey usage) {
@@ -97,7 +103,11 @@ public final class ForbiddenApiMatcher {
             return Optional.empty();
         }
         String packageName = className.substring(0, lastDot);
-        for (PackageSignature candidate : packages) {
+        // Reverse order: a later-configured package signature must win over an earlier one that
+        // also matches, consistent with the "last one wins" contract documented on this class and
+        // honored by the map-backed class/field lookups above via plain HashMap#put overwrite.
+        for (int i = packages.size() - 1; i >= 0; i--) {
+            PackageSignature candidate = packages.get(i);
             if (matchesPackage(candidate, packageName)) {
                 return Optional.of(candidate);
             }
@@ -115,7 +125,9 @@ public final class ForbiddenApiMatcher {
 
     private static <S extends ForbiddenSignature> Optional<ForbiddenSignature> matchOverload(
             List<S> candidates, List<String> parameterTypes) {
-        for (S candidate : candidates) {
+        // Reverse order: same "last one wins" reasoning as matchType's package scan above.
+        for (int i = candidates.size() - 1; i >= 0; i--) {
+            S candidate = candidates.get(i);
             List<String> candidateParameterTypes = candidate instanceof MethodSignature method
                     ? method.parameterTypes()
                     : ((ConstructorSignature) candidate).parameterTypes();

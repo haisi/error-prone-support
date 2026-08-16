@@ -107,9 +107,18 @@ public final class ForbiddenApiChecker extends BugChecker
             return report(new UsageKey.TypeUsage(classSymbol.getQualifiedName().toString()), tree);
         }
         if (symbol.getKind() == ElementKind.FIELD || symbol.getKind() == ElementKind.ENUM_CONSTANT) {
+            // Unlike every other field/enum-constant symbol, the synthetic FIELD symbol for a
+            // primitive/void class literal (e.g. `void.class`) has no real declaring class, so
+            // enclosingClass() returns null here - there's no owner to match against, and no
+            // signature could ever name this usage anyway.
+            Symbol.ClassSymbol owner = ASTHelpers.enclosingClass(symbol);
+            if (owner == null) {
+                return Description.NO_MATCH;
+            }
             return report(
                     new UsageKey.FieldUsage(
-                            ownerName(symbol), symbol.getSimpleName().toString()),
+                            owner.getQualifiedName().toString(),
+                            symbol.getSimpleName().toString()),
                     tree);
         }
         return Description.NO_MATCH;

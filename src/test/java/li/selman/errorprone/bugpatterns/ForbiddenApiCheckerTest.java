@@ -418,4 +418,37 @@ final class ForbiddenApiCheckerTest {
                         "}")
                 .doTest();
     }
+
+    @Test
+    void voidClassLiteralDoesNotCrashTheChecker() throws IOException {
+        // Regression guard: `void.class` resolves to a synthetic FIELD symbol whose
+        // ASTHelpers.enclosingClass() returns null (it has no real declaring class), unlike every
+        // other field/enum-constant symbol. Nothing here is configured as forbidden - this is
+        // purely checking the checker doesn't throw while merely looking at the usage.
+        helper("java.util.Date")
+                .addSourceLines("Test.java", "class Test {", "  Class<?> c = void.class;", "}")
+                .doTest();
+    }
+
+    @Test
+    void enumConstantInPatternMatchingSwitchLabelIsDetected() throws IOException {
+        // Verifies a construct earlier flagged as unverified: does a Java 21+ pattern-matching
+        // switch's `case CONSTANT ->` label (a ConstantCaseLabelTree) route through
+        // IdentifierTreeMatcher the same way an ordinary enum-constant reference does?
+        helper("com.foo.shaded.Day#MONDAY")
+                .addSourceLines(
+                        "com/foo/shaded/Day.java", "package com.foo.shaded;", "public enum Day { MONDAY, TUESDAY }")
+                .addSourceLines(
+                        "Test.java",
+                        "class Test {",
+                        "  boolean m(com.foo.shaded.Day day) {",
+                        "    return switch (day) {",
+                        "      // BUG: Diagnostic contains: com.foo.shaded.Day#MONDAY is forbidden",
+                        "      case MONDAY -> true;",
+                        "      case TUESDAY -> false;",
+                        "    };",
+                        "  }",
+                        "}")
+                .doTest();
+    }
 }
