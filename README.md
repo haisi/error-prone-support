@@ -7,6 +7,17 @@
 [![License](https://img.shields.io/github/license/haisi/error-prone-support)](LICENSE)
 [![Mutation Score](https://haisi.github.io/error-prone-support/pit/badge.svg)](https://haisi.github.io/error-prone-support/pit/)
 
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=bugs)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=haisi_error-prone-support&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=haisi_error-prone-support)
+
 Custom Error Prone bug patterns, starting with a configurable `ForbiddenApi` checker for
 signature-based API bans.
 
