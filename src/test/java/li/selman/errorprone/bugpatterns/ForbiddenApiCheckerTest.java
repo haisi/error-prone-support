@@ -450,6 +450,23 @@ final class ForbiddenApiCheckerTest {
     }
 
     @Test
+    void staticImportOfRealAssertJAssertThatDoesNotCrashTheChecker() throws IOException {
+        // Same failure mode as above, but against the actual library call that first surfaced it -
+        // discovered wiring this checker into java-lib-archetype, whose generated test scaffolding
+        // statically imports assertThat - rather than a hand-rolled stand-in for it. AssertJ's
+        // `assertThat` has dozens of overloads; nothing here is configured as forbidden, so this is
+        // purely checking the checker doesn't throw.
+        helper("java.util.Date")
+                .addSourceLines(
+                        "Test.java",
+                        "import static org.assertj.core.api.Assertions.assertThat;",
+                        "class Test {",
+                        "  void t() { assertThat(1).isEqualTo(1); }",
+                        "}")
+                .doTest();
+    }
+
+    @Test
     void enumConstantInPatternMatchingSwitchLabelIsDetected() throws IOException {
         // Verifies a construct earlier flagged as unverified: does a Java 21+ pattern-matching
         // switch's `case CONSTANT ->` label (a ConstantCaseLabelTree) route through
