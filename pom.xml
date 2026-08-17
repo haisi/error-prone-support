@@ -4,7 +4,7 @@
 
     <groupId>li.selman.error-prone</groupId>
     <artifactId>bugpatterns</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
     <packaging>jar</packaging>
 
     <name>bugpatterns</name>
