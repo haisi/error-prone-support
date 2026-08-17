@@ -113,6 +113,13 @@ public final class ForbiddenApiChecker extends BugChecker
      * would report the same call/instantiation twice.
      */
     private Description matchClassOrFieldSymbol(Symbol symbol, Tree tree, VisitorState state) {
+        if (symbol == null) {
+            // A static import of an overloaded method (e.g. `import static
+            // org.assertj.core.api.Assertions.assertThat;`) has no single resolved symbol at the
+            // import site - ASTHelpers.getSymbol(tree) returns null rather than picking one
+            // overload arbitrarily. There's no symbol to match against, so nothing to report.
+            return Description.NO_MATCH;
+        }
         if (symbol instanceof Symbol.ClassSymbol classSymbol) {
             return report(new UsageKey.TypeUsage(classSymbol.getQualifiedName().toString()), tree, state);
         }

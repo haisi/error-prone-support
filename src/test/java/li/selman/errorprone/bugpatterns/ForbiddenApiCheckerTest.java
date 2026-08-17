@@ -431,6 +431,25 @@ final class ForbiddenApiCheckerTest {
     }
 
     @Test
+    void staticImportOfOverloadedMethodDoesNotCrashTheChecker() throws IOException {
+        // Regression guard: a static import of an overloaded method (e.g. AssertJ's assertThat)
+        // has no single resolved symbol at the import site, so ASTHelpers.getSymbol(tree) returns
+        // null there - unlike every other identifier/member-select this checker sees. Nothing here
+        // is configured as forbidden - this is purely checking the checker doesn't throw.
+        helper("java.util.Date")
+                .addSourceLines(
+                        "com/foo/Overloaded.java",
+                        "package com.foo;",
+                        "public class Overloaded {",
+                        "  public static void m(int i) {}",
+                        "  public static void m(String s) {}",
+                        "}")
+                .addSourceLines(
+                        "Test.java", "import static com.foo.Overloaded.m;", "class Test {", "  void t() { m(1); } }")
+                .doTest();
+    }
+
+    @Test
     void enumConstantInPatternMatchingSwitchLabelIsDetected() throws IOException {
         // Verifies a construct earlier flagged as unverified: does a Java 21+ pattern-matching
         // switch's `case CONSTANT ->` label (a ConstantCaseLabelTree) route through
