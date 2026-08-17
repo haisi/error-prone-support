@@ -36,6 +36,16 @@ jobs:
           fi
           echo "version=$releaseVersion" >> "$GITHUB_OUTPUT"
 
+      - name: Reject SNAPSHOT versions
+        # Maven Central rejects SNAPSHOT deployments; catch this before tagging or building
+        # anything, since workflow_dispatch derives the version straight from pom.xml, which may
+        # not have been bumped to a release version yet (run the Bump Version workflow first).
+        run: |
+          if [[ "${{ steps.version.outputs.version }}" == *-SNAPSHOT ]]; then
+            echo "::error::Refusing to release SNAPSHOT version ${{ steps.version.outputs.version }}. Run the Bump Version workflow first." >&2
+            exit 1
+          fi
+
       - name: Tag release
         if: github.event_name == 'workflow_dispatch'
         run: |
